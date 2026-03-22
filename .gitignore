@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Neo4j Docker volumes
+neo4j/
+import/
+
+# OS files
+Thumbs.db
+Desktop.ini
+
+# Build output
+dist/
