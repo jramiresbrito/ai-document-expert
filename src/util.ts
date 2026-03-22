@@ -13,7 +13,7 @@ function displayResults(results: Array<Document<Record<string, any>>>): void {
   });
 }
 
-function formatContent(content: string, maxLength: number = 200): string {
+function formatContent(content: string, maxLength: number = 1000): string {
   const cleaned = content.replace(/\s+/g, ' ').trim();
   return cleaned.length > maxLength
     ? `${cleaned.substring(0, maxLength)}...`
