@@ -27,7 +27,7 @@ export const CONFIG = Object.freeze({
     }
   },
   pdf: {
-    path: "./tensores.pdf",
+    path: process.env.PDF_PATH || './O-Menino-no-Espelho-Fernando-Sabino.pdf',
   },
   textSplitter: {
     chunkSize: 1000,

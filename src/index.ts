@@ -15,7 +15,6 @@ async function clearAll(vectorStore: Neo4jVectorStore, nodeLabel: string): Promi
   console.log("✅ Documentos removidos com sucesso\n");
 }
 
-
 try {
   console.log("🚀 Inicializando sistema de Embeddings com Neo4j...\n");
 
@@ -41,7 +40,6 @@ try {
   }
   console.log("\n✅ Base de dados populada com sucesso!\n");
 
-
   // ==================== STEP 2: RUN SIMILARITY SEARCH ====================
   console.log("🔍 ETAPA 2: Executando buscas por similaridade...\n");
   const questions = [
@@ -64,7 +62,6 @@ try {
     )
     displayResults(results)
   }
-
 
   // Cleanup
   console.log(`\n${'='.repeat(80)}`);
