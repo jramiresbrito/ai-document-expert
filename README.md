@@ -20,7 +20,7 @@ PDF Document
          │
          ▼
 ┌──────────────────┐
-│ Text Splitter    │  Splits into chunks (1000 chars, 200 overlap)
+│ Text Splitter    │  Splits into chunks (500 chars, 200 overlap)
 │ (Recursive)      │
 └────────┬─────────┘
          │
@@ -38,6 +38,15 @@ PDF Document
          │
          ▼
    Similarity Search → Top-K relevant chunks returned
+         │
+         ▼
+┌──────────────────┐
+│ AI Agent         │  Uses retrieved context + prompts to generate
+│ (LangChain)      │  expert answers in natural language
+└────────┬─────────┘
+         │
+         ▼
+   Answers saved to ./answers/ folder
 ```
 
 ## Tech Stack
@@ -50,6 +59,7 @@ PDF Document
 | Vector Store   | Neo4j with vector index                         |
 | PDF Processing | LangChain PDF Loader + Recursive Text Splitter  |
 | LLM Gateway    | OpenRouter (configurable model)                 |
+| AI Framework   | LangChain (chains, prompts, output parsers)     |
 
 ## Prerequisites
 
@@ -88,7 +98,14 @@ OPENROUTER_SITE_NAME=ai-document-expert
 
 Place your PDF document in the project root and update the path in [src/config.ts](src/config.ts) (`CONFIG.pdf.path`).
 
-### 4. Run
+### 4. Customize Prompts (Optional)
+
+Edit the prompts in the `prompts/` folder:
+
+- `answerPrompt.json`: Defines the AI agent's role, instructions, and constraints
+- `template.txt`: The prompt template used for generating responses
+
+### 5. Run
 
 ```bash
 npm start
@@ -99,7 +116,8 @@ The system will:
 1. Load and split the PDF into chunks
 2. Generate embeddings for each chunk using the local HuggingFace model
 3. Store the vectors in Neo4j
-4. Run similarity searches against predefined questions
+4. Run predefined questions through the AI agent
+5. Save answers to the `answers/` folder
 
 For development with hot reload:
 
@@ -111,11 +129,58 @@ npm run dev
 
 ```
 src/
+├── ai.ts                  # AI agent class for question answering
 ├── config.ts              # Centralized configuration (Neo4j, embeddings, OpenRouter)
 ├── documentProcessor.ts   # PDF loading and text chunking
-├── index.ts               # Main pipeline: ingest → index → search
+├── index.ts               # Main pipeline: ingest → index → search → answer
 └── util.ts                # Display helpers for search results
+
+prompts/
+├── answerPrompt.json      # AI agent configuration (role, instructions, constraints)
+└── template.txt           # Prompt template for response generation
+
+answers/                   # Generated answers saved here
+├── answer-0-[timestamp].md
+├── answer-1-[timestamp].md
+└── ...
+
+neo4j/                     # Neo4j data and configuration
+├── data/
+├── logs/
+└── ...
+
+docker-compose.yml         # Neo4j service configuration
+package.json               # Dependencies and scripts
+tsconfig.json              # TypeScript configuration
 ```
+
+## AI Agent
+
+The system includes an intelligent AI agent that:
+
+- Retrieves relevant document chunks using vector similarity search
+- Uses configurable prompts to generate expert answers
+- Handles errors gracefully (e.g., rate limits, no relevant context)
+- Saves responses in Markdown format to the `answers/` folder
+
+### Prompt Configuration
+
+The `prompts/answerPrompt.json` file defines:
+
+- **Role**: The AI's persona (e.g., "specialist in Fernando Sabino")
+- **Task**: What the AI should do
+- **Instructions**: Step-by-step guidelines
+- **Constraints**: Language, tone, length, format requirements
+- **Examples**: Sample Q&A pairs
+
+### Customization
+
+To adapt the system for different documents:
+
+1. Update `CONFIG.pdf.path` in `src/config.ts`
+2. Modify `prompts/answerPrompt.json` to match the domain expertise needed
+3. Adjust `prompts/template.txt` if needed
+4. Update questions in `src/index.ts` or implement a CLI/API for dynamic queries
 
 ## Tear Down
 
