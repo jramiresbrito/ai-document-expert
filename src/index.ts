@@ -3,7 +3,9 @@ import { CONFIG } from "./config.ts";
 import { DocumentProcessor } from "./documentProcessor.ts";
 import { type PretrainedOptions } from "@huggingface/transformers";
 import { Neo4jVectorStore } from "@langchain/community/vectorstores/neo4j_vector";
-import { displayResults } from "./util.ts";
+import { ChatOpenAI } from "@langchain/openai";
+import { AI } from "./ai.ts";
+import { writeFile, mkdir } from 'node:fs/promises'
 
 let _neo4jVectorStore = null
 
@@ -26,6 +28,17 @@ try {
   const embeddings = new HuggingFaceTransformersEmbeddings({
     model: CONFIG.embedding.modelName,
     pretrainedOptions: CONFIG.embedding.pretrainedOptions as PretrainedOptions
+  })
+
+  const nlpModel = new ChatOpenAI({
+    temperature: CONFIG.openRouter.temperature,
+    maxRetries: CONFIG.openRouter.maxRetries,
+    modelName: CONFIG.openRouter.nlpModel,
+    openAIApiKey: CONFIG.openRouter.apiKey,
+    configuration: {
+      baseURL: CONFIG.openRouter.url,
+      defaultHeaders: CONFIG.openRouter.defaultHeaders
+    }
   })
 
   _neo4jVectorStore = await Neo4jVectorStore.fromExistingGraph(
@@ -51,16 +64,31 @@ try {
     "Como o livro aborda o tema da passagem do tempo e do amadurecimento?",
   ]
 
-  for (const question of questions) {
-    console.log(`\n${'='.repeat(80)}`);
-    console.log(`📌 PERGUNTA: ${question}`);
-    console.log('='.repeat(80));
+  const ai = new AI({
+    nlpModel,
+    debugLog: console.log,
+    vectorStore: _neo4jVectorStore,
+    promptConfig: CONFIG.promptConfig,
+    templateText: CONFIG.templateText,
+    topK: CONFIG.similarity.topK
+  })
 
-    const results = await _neo4jVectorStore.similaritySearch(
-      question,
-      CONFIG.similarity.topK
-    )
-    displayResults(results)
+  for (const index in questions) {
+    const question = questions[index]
+    console.log(`\n${'='.repeat(80)}`)
+    console.log(`⁉️ PERGUNTA: ${question}`)
+    console.log(`\n${'='.repeat(80)}`)
+
+    const result = await ai.answerQuestion(question!)
+    if (result.error) {
+      console.log('\n ❌ Erro: ${result.error}\n')
+      continue
+    }
+
+    console.log('\n${result.answer}\n')
+    await mkdir(CONFIG.output.answersFolder, { recursive: true })
+    const fileName = `${CONFIG.output.answersFolder}/${CONFIG.output.fileName}-${index}-${Date.now()}.md`
+    await writeFile(fileName, result.answer!)
   }
 
   // Cleanup

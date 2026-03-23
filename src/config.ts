@@ -1,4 +1,11 @@
 import type { DataType, PretrainedModelOptions } from "@huggingface/transformers";
+import { readFileSync } from 'node:fs'
+
+const promptsFolder = './prompts';
+const promptFiles = {
+  answerPrompt: `${promptsFolder}/answerPrompt.json`,
+  template: `${promptsFolder}/template.txt`
+}
 
 export interface TextSplitterConfig {
   chunkSize: number;
@@ -6,6 +13,12 @@ export interface TextSplitterConfig {
 }
 
 export const CONFIG = Object.freeze({
+  promptConfig: JSON.parse(readFileSync(promptFiles.answerPrompt, 'utf-8')),
+  templateText: readFileSync(promptFiles.template, 'utf-8'),
+  output: {
+    answersFolder: './answers',
+    fileName: 'answer'
+  },
   neo4j: {
     url: process.env.NEO4J_URI!,
     username: process.env.NEO4J_USER!,
@@ -20,7 +33,7 @@ export const CONFIG = Object.freeze({
     url: "https://openrouter.ai/api/v1",
     apiKey: process.env.OPENROUTER_API_KEY,
     temperature: 0.3,
-    maxRetries: 2,
+    maxRetries: 5,
     defaultHeaders: {
       "HTTP-Referer": process.env.OPENROUTER_SITE_URL,
       "X-Title": process.env.OPENROUTER_SITE_NAME,
@@ -30,7 +43,7 @@ export const CONFIG = Object.freeze({
     path: process.env.PDF_PATH || './O-Menino-no-Espelho-Fernando-Sabino.pdf',
   },
   textSplitter: {
-    chunkSize: 1000,
+    chunkSize: 500,
     chunkOverlap: 200,
   },
   embedding: {
