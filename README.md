@@ -49,6 +49,27 @@ PDF Document
    Answers saved to ./answers/ folder
 ```
 
+## Performance Optimization
+
+The system includes automatic PDF change detection using SHA256 file hashing:
+
+- **First run**: Processes the PDF and saves a hash file (`.pdf.hash`)
+- **Subsequent runs**: Compares current PDF hash with stored hash
+- **If unchanged**: Skips expensive PDF processing and vector storage steps
+- **If changed**: Reprocesses the PDF and updates the hash
+
+This optimization significantly speeds up repeated runs when the PDF hasn't changed, while ensuring data consistency when it has.
+
+### Force Reprocessing
+
+To manually force PDF reprocessing (useful when changing text splitter settings or embeddings configuration):
+
+```bash
+npm start -- --force-reprocess
+```
+
+This bypasses the hash check and always reprocesses the PDF.
+
 ## Tech Stack
 
 | Component      | Technology                                      |
@@ -113,9 +134,9 @@ npm start
 
 The system will:
 
-1. Load and split the PDF into chunks
-2. Generate embeddings for each chunk using the local HuggingFace model
-3. Store the vectors in Neo4j
+1. Check if the PDF has changed since last run (using file hash)
+2. If unchanged, skip PDF processing and vector storage
+3. If changed or first run, load and split the PDF, generate embeddings, and store vectors in Neo4j
 4. Run predefined questions through the AI agent
 5. Save answers to the `answers/` folder
 
@@ -123,6 +144,12 @@ For development with hot reload:
 
 ```bash
 npm run dev
+```
+
+**Note**: To force reprocessing of the PDF (e.g., if you changed the text splitter settings), use the `--force-reprocess` flag:
+
+```bash
+npm start -- --force-reprocess
 ```
 
 ## Project Structure
@@ -143,6 +170,9 @@ answers/                   # Generated answers saved here
 ├── answer-0-[timestamp].md
 ├── answer-1-[timestamp].md
 └── ...
+
+[your-pdf].pdf             # Your input PDF document
+[your-pdf].pdf.hash        # Hash file to track PDF changes
 
 neo4j/                     # Neo4j data and configuration
 ├── data/

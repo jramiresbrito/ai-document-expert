@@ -5,9 +5,26 @@ import { type PretrainedOptions } from "@huggingface/transformers";
 import { Neo4jVectorStore } from "@langchain/community/vectorstores/neo4j_vector";
 import { ChatOpenAI } from "@langchain/openai";
 import { AI } from "./ai.ts";
-import { writeFile, mkdir } from 'node:fs/promises'
+import { writeFile, mkdir, readFile } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
 
 let _neo4jVectorStore = null
+
+// Parse command line arguments
+const args = process.argv.slice(2)
+const forceReprocess = args.includes('--force-reprocess')
+const HASH_DISPLAY_LENGTH = 16
+
+async function computeFileHash(filePath: string): Promise<string> {
+  try {
+    const fileBuffer = await readFile(filePath)
+    const hashSum = createHash('sha256')
+    hashSum.update(fileBuffer)
+    return hashSum.digest('hex')
+  } catch (error) {
+    throw new Error(`Failed to compute hash for ${filePath}: ${(error as Error).message}`)
+  }
+}
 
 async function clearAll(vectorStore: Neo4jVectorStore, nodeLabel: string): Promise<void> {
   console.log("🗑️  Removendo todos os documentos existentes...");
@@ -20,11 +37,33 @@ async function clearAll(vectorStore: Neo4jVectorStore, nodeLabel: string): Promi
 try {
   console.log("🚀 Inicializando sistema de Embeddings com Neo4j...\n");
 
-  const documentProcessor = new DocumentProcessor(
-    CONFIG.pdf.path,
-    CONFIG.textSplitter,
-  )
-  const documents = await documentProcessor.loadAndSplit()
+  const pdfPath = CONFIG.pdf.path
+  const hashFilePath = `${pdfPath}.hash`
+
+  // Compute current PDF hash
+  const currentHash = await computeFileHash(pdfPath)
+  console.log(`📄 Hash do PDF atual: ${currentHash.substring(0, HASH_DISPLAY_LENGTH)}...`)
+
+  // Check if we need to reprocess
+  let needsProcessing = forceReprocess
+  if (!forceReprocess) {
+    try {
+      const storedHash = await readFile(hashFilePath, 'utf-8')
+      if (storedHash === currentHash) {
+        console.log("✅ PDF não mudou desde a última execução. Pulando processamento.\n")
+        needsProcessing = false
+      } else {
+        console.log("🔄 PDF mudou. Reprocessando...\n")
+        needsProcessing = true
+      }
+    } catch (error) {
+      console.log("ℹ️  Primeira execução ou hash não encontrado. Processando PDF...\n")
+      needsProcessing = true
+    }
+  } else {
+    console.log("🔄 Flag --force-reprocess ativada. Reprocessando PDF...\n")
+  }
+
   const embeddings = new HuggingFaceTransformersEmbeddings({
     model: CONFIG.embedding.modelName,
     pretrainedOptions: CONFIG.embedding.pretrainedOptions as PretrainedOptions
@@ -46,12 +85,24 @@ try {
     CONFIG.neo4j
   )
 
-  clearAll(_neo4jVectorStore, CONFIG.neo4j.nodeLabel)
-  for (const [index, doc] of documents.entries()) {
-    console.log(`✅ Adicionando documento ${index + 1}/${documents.length}`);
-    await _neo4jVectorStore.addDocuments([doc])
+  if (needsProcessing) {
+    const documentProcessor = new DocumentProcessor(
+      pdfPath,
+      CONFIG.textSplitter,
+    )
+    const documents = await documentProcessor.loadAndSplit()
+
+    clearAll(_neo4jVectorStore, CONFIG.neo4j.nodeLabel)
+    for (const [index, doc] of documents.entries()) {
+      console.log(`✅ Adicionando documento ${index + 1}/${documents.length}`);
+      await _neo4jVectorStore.addDocuments([doc])
+    }
+    console.log("\n✅ Base de dados populada com sucesso!\n");
+
+    // Save the new hash
+    await writeFile(hashFilePath, currentHash)
+    console.log(`💾 Hash salvo em ${hashFilePath}\n`)
   }
-  console.log("\n✅ Base de dados populada com sucesso!\n");
 
   // ==================== STEP 2: RUN SIMILARITY SEARCH ====================
   console.log("🔍 ETAPA 2: Executando buscas por similaridade...\n");
@@ -81,11 +132,11 @@ try {
 
     const result = await ai.answerQuestion(question!)
     if (result.error) {
-      console.log('\n ❌ Erro: ${result.error}\n')
+      console.log(`\n ❌ Erro: ${result.error}\n`)
       continue
     }
 
-    console.log('\n${result.answer}\n')
+    console.log(`\n${result.answer}\n`)
     await mkdir(CONFIG.output.answersFolder, { recursive: true })
     const fileName = `${CONFIG.output.answersFolder}/${CONFIG.output.fileName}-${index}-${Date.now()}.md`
     await writeFile(fileName, result.answer!)
